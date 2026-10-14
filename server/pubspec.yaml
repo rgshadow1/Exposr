@@ -1,0 +1,9 @@
+name: breach_checker_proxy
+description: Minimal server that holds the HIBP API key so the Flutter app doesn't have to.
+publish_to: 'none'
+version: 1.0.0
+
+environment:
+  sdk: ^3.9.0
+
+# No dependencies: dart:io has everything needed for a single-route proxy.
