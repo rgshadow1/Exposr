@@ -111,6 +111,17 @@ class EmailCheckController extends ChangeNotifier {
     }
   }
 
+  List<Breach> get loadedBreaches {
+    final current = _state;
+    if (current is! LookupBreached) return const [];
+
+    final details = current.details;
+    if (details is! DetailsLoaded) return const [];
+    return details.breaches;
+  }
+
+
+
   /// Fetches the per-breach details for the address currently shown.
   Future<void> loadDetails() async {
     final current = _state;
