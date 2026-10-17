@@ -111,6 +111,8 @@ class EmailCheckController extends ChangeNotifier {
     }
   }
 
+  /// The breach details fetched for the address on screen, or an empty list
+  /// when there aren't any (no check yet, still loading, clean, or reset).
   List<Breach> get loadedBreaches {
     final current = _state;
     if (current is! LookupBreached) return const [];
@@ -120,7 +122,15 @@ class EmailCheckController extends ChangeNotifier {
     return details.breaches;
   }
 
+  /// Bumped each time something asks the form to forget the typed address, for
+  /// example "Shake to hide". The email field listens to it and clears itself.
+  final ValueNotifier<int> inputWipes = ValueNotifier<int>(0);
 
+  /// Clears the results and asks the form to clear the typed address too.
+  void wipe() {
+    reset();
+    inputWipes.value++;
+  }
 
   /// Fetches the per-breach details for the address currently shown.
   Future<void> loadDetails() async {
@@ -161,6 +171,7 @@ class EmailCheckController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    inputWipes.dispose();
     super.dispose();
   }
 }

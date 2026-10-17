@@ -12,3 +12,17 @@ String formatCount(int value) {
   }
   return out.toString();
 }
+
+/// A short form for tight spaces: 152445165 -> "152.4M", 12000 -> "12K".
+String formatCompact(int value) {
+  if (value >= 1000000000) return '${_oneDecimal(value / 1000000000)}B';
+  if (value >= 1000000) return '${_oneDecimal(value / 1000000)}M';
+  if (value >= 1000) return '${_oneDecimal(value / 1000)}K';
+  return value.toString();
+}
+
+/// One decimal place, dropping a trailing ".0": 12.0 -> "12", 152.44 -> "152.4".
+String _oneDecimal(double value) {
+  final text = value.toStringAsFixed(1);
+  return text.endsWith('.0') ? text.substring(0, text.length - 2) : text;
+}

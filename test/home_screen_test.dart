@@ -1,10 +1,14 @@
 import 'package:breach_checker/app.dart';
+import 'package:breach_checker/app_environment.dart';
 import 'package:breach_checker/core/page_backdrop.dart';
 import 'package:breach_checker/services/breach_api_service.dart';
+import 'package:breach_checker/services/key_value_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lottie/lottie.dart';
 
 import 'support/fake_breach_api_service.dart';
+import 'support/fakes.dart';
 
 /// Widget tests for the Home screen. They drive the UI like a user (type,
 /// tap) and check what appears. The network is replaced by a fake service.
@@ -13,12 +17,14 @@ void main() {
 
   setUp(() => service = FakeBreachApiService());
 
-  Future<void> pumpApp(WidgetTester tester) async {
+  /// [environment] swaps in fake hardware (vibration, shake sensor, storage).
+  /// Without one, the app gets inert stand-ins.
+  Future<void> pumpApp(WidgetTester tester, {AppEnvironment? environment}) async {
     // A typical phone-sized screen: 390x844 logical pixels at 1x density.
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(390, 844);
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(BreachCheckerApp(service: service));
+    await tester.pumpWidget(BreachCheckerApp(service: service, environment: environment));
   }
 
   final checkButton = find.widgetWithText(FilledButton, 'Check Email');
@@ -49,7 +55,7 @@ void main() {
     expect(find.textContaining('sent over HTTPS to XposedOrNot'), findsOneWidget);
 
     final nav = find.byType(NavigationBar);
-    for (final label in ['Home', 'History', 'Settings']) {
+    for (final label in ['Home', 'Insights', 'Watchlist', 'Settings']) {
       expect(find.descendant(of: nav, matching: find.text(label)), findsOneWidget);
     }
   });
@@ -292,12 +298,118 @@ void main() {
 
     await tester.enterText(find.byType(TextFormField), 'keep@example.com');
 
-    await tester.tap(find.descendant(of: nav, matching: find.text('History')));
+    await tester.tap(find.descendant(of: nav, matching: find.text('Insights')));
     await tester.pumpAndSettle();
-    expect(find.textContaining('placeholder'), findsOneWidget);
+    expect(find.text('No insights yet'), findsOneWidget);
+
+    await tester.tap(find.descendant(of: nav, matching: find.text('Watchlist')));
+    await tester.pumpAndSettle();
+    expect(find.text('Nothing on your watchlist'), findsOneWidget);
+
+    await tester.tap(find.descendant(of: nav, matching: find.text('Settings')));
+    await tester.pumpAndSettle();
+    expect(find.text('About the developer'), findsOneWidget);
 
     await tester.tap(find.descendant(of: nav, matching: find.text('Home')));
     await tester.pumpAndSettle();
     expect(find.text('keep@example.com'), findsOneWidget);
+  });
+
+  group('animations', () {
+    testWidgets('a looping scan animation plays while the check runs', (tester) async {
+      await pumpApp(tester);
+
+      await enterEmailAndTap(tester, 'name@example.com');
+
+      expect(find.text('Searching known breaches…'), findsOneWidget);
+      expect(find.byType(Lottie), findsOneWidget);
+    });
+
+    testWidgets('the alert animation appears with breaches', (tester) async {
+      await pumpApp(tester);
+
+      await enterEmailAndTap(tester, 'name@example.com');
+      service.answerBreached('name@example.com', ['Adobe']);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Searching known breaches…'), findsNothing);
+      expect(find.byType(Lottie), findsOneWidget);
+    });
+
+    testWidgets('the success animation appears when nothing is found', (tester) async {
+      await pumpApp(tester);
+
+      await enterEmailAndTap(tester, 'name@example.com');
+      service.answerClean('name@example.com');
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Lottie), findsOneWidget);
+    });
+  });
+
+  group('phone features', () {
+    testWidgets('vibrates with a firm pattern when breaches are found', (tester) async {
+      final haptics = FakeHapticsService();
+      await pumpApp(tester, environment: AppEnvironment(haptics: haptics));
+
+      await enterEmailAndTap(tester, 'name@example.com');
+      service.answerBreached('name@example.com', ['Adobe']);
+      await tester.pumpAndSettle();
+
+      expect(haptics.calls, ['breached']);
+    });
+
+    testWidgets('a soft tap when nothing is found', (tester) async {
+      final haptics = FakeHapticsService();
+      await pumpApp(tester, environment: AppEnvironment(haptics: haptics));
+
+      await enterEmailAndTap(tester, 'name@example.com');
+      service.answerClean('name@example.com');
+      await tester.pumpAndSettle();
+
+      expect(haptics.calls, ['clean']);
+    });
+
+    testWidgets('stays still when haptics are turned off in settings', (tester) async {
+      final store = MemoryKeyValueStore();
+      await store.setBool('settings.haptics', false);
+      final haptics = FakeHapticsService();
+      await pumpApp(tester, environment: AppEnvironment(store: store, haptics: haptics));
+
+      await enterEmailAndTap(tester, 'name@example.com');
+      service.answerBreached('name@example.com', ['Adobe']);
+      await tester.pumpAndSettle();
+
+      expect(haptics.calls, isEmpty);
+    });
+
+    testWidgets('shake to hide clears the typed address and the results', (tester) async {
+      final store = MemoryKeyValueStore();
+      await store.setBool('settings.shakeToHide', true);
+      final shake = FakeShakeSource();
+      await pumpApp(tester, environment: AppEnvironment(store: store, shake: shake));
+
+      await enterEmailAndTap(tester, 'name@example.com');
+      service.answerBreached('name@example.com', ['Adobe']);
+      await tester.pumpAndSettle();
+      expect(find.text('Found in 1 breach'), findsOneWidget);
+
+      shake.shake();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Found in 1 breach'), findsNothing);
+      expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, isEmpty);
+    });
+
+    testWidgets('a shake does nothing while the setting is off', (tester) async {
+      final shake = FakeShakeSource();
+      await pumpApp(tester, environment: AppEnvironment(shake: shake));
+
+      await tester.enterText(find.byType(TextFormField), 'name@example.com');
+      shake.shake();
+      await tester.pumpAndSettle();
+
+      expect(find.text('name@example.com'), findsOneWidget);
+    });
   });
 }

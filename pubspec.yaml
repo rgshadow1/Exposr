@@ -1,7 +1,7 @@
 name: breach_checker
-description: Password policy and breach checker app.
+description: Exposr - check whether an email address appears in known data breaches.
 publish_to: "none"
-version: 0.1.0
+version: 1.0.0+1
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -13,17 +13,40 @@ dependencies:
   google_fonts: ^6.2.1
   http: ^1.2.2
   provider: ^6.1.2
+  # Animations (Lottie JSON files in assets/lottie).
+  lottie: ^3.3.0
+  # Small local storage for settings and the watchlist.
+  shared_preferences: ^2.5.0
+  # Opens the developer's website from Settings.
+  url_launcher: ^6.3.0
+  # Fingerprint / face / PIN prompt for the app lock.
+  local_auth: ^3.0.0
+  # Accelerometer, for "Shake to hide".
+  sensors_plus: ^7.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.0
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/exposr_logo.png"
+  remove_alpha_ios: true
+  background_color_ios: "#131418"
+  adaptive_icon_background: "#131418"
+  adaptive_icon_foreground: "assets/images/exposr_logo.png"
 
 flutter:
   uses-material-design: true
 
   assets:
     - assets/images/exposr_logo.png
+    - assets/lottie/
+    # Read at runtime to list Inter's licence on the licences page.
+    - assets/fonts/OFL.txt
 
   # Inter, bundled with the app (SIL Open Font License, see assets/fonts/OFL.txt).
   # Bundling means no font is downloaded at runtime.

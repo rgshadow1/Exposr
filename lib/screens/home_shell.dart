@@ -3,9 +3,15 @@ import 'package:flutter/services.dart';
 
 import '../core/app_colors.dart';
 import '../core/page_backdrop.dart';
+import '../services/app_lock_service.dart';
+import '../services/link_opener.dart';
 import '../state/email_check_controller.dart';
-import '../widgets/placeholder_screen.dart';
+import '../state/settings_controller.dart';
+import '../state/watchlist_controller.dart';
 import 'home_screen.dart';
+import 'insights_screen.dart';
+import 'settings_screen.dart';
+import 'watchlist_screen.dart';
 
 /// The app's frame: a [Scaffold] holding the current tab and the bottom
 /// navigation bar.
@@ -14,10 +20,21 @@ import 'home_screen.dart';
 /// `bottomNavigationBar`, `appBar`, ...) and lays them out for you, including
 /// resizing the body when the keyboard opens.
 class HomeShell extends StatefulWidget {
-  const HomeShell({super.key, required this.controller});
+  const HomeShell({
+    super.key,
+    required this.controller,
+    required this.settings,
+    required this.watchlist,
+    required this.lock,
+    required this.links,
+  });
 
   /// Created once by the app and handed down to the screens that need it.
   final EmailCheckController controller;
+  final SettingsController settings;
+  final WatchlistController watchlist;
+  final AppLockService lock;
+  final LinkOpener links;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -77,23 +94,34 @@ class _HomeShellState extends State<HomeShell> {
       // is skipped because NavigationBar handles its own bottom inset.
       body: SafeArea(
         bottom: false,
-        // IndexedStack builds every tab once and shows one, so each tab
-        // keeps its state (like typed text) while you visit another.
+        // IndexedStack keeps the Home tab alive while you visit another, so
+        // the typed address and the results are still there when you come back.
+        // The other tabs are built only while they are showing: they keep their
+        // data in the controllers, and building them fresh means their
+        // animations play each time you open them.
         child: IndexedStack(
           index: _selectedIndex,
           sizing: StackFit.expand,
           children: [
             HomeScreen(controller: widget.controller),
-            const PlaceholderScreen(
-              icon: Icons.history,
-              title: 'History',
-              message: 'Nothing to show yet. This screen is a placeholder for a later step.',
-            ),
-            const PlaceholderScreen(
-              icon: Icons.settings_outlined,
-              title: 'Settings',
-              message: 'Nothing to show yet. This screen is a placeholder for a later step.',
-            ),
+            if (_selectedIndex == 1)
+              InsightsScreen(controller: widget.controller)
+            else
+              const SizedBox.shrink(),
+            if (_selectedIndex == 2)
+              WatchlistScreen(watchlist: widget.watchlist)
+            else
+              const SizedBox.shrink(),
+            if (_selectedIndex == 3)
+              SettingsScreen(
+                settings: widget.settings,
+                watchlist: widget.watchlist,
+                lookup: widget.controller,
+                lock: widget.lock,
+                links: widget.links,
+              )
+            else
+              const SizedBox.shrink(),
           ],
         ),
       ),
@@ -101,25 +129,48 @@ class _HomeShellState extends State<HomeShell> {
         decoration: const BoxDecoration(
           border: Border(top: BorderSide(color: AppColors.border)),
         ),
-        child: NavigationBar(
-          selectedIndex: _selectedIndex,
-          onDestinationSelected: (index) => setState(() => _selectedIndex = index),
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home),
-              label: 'Home',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.history),
-              label: 'History',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.settings_outlined),
-              selectedIcon: Icon(Icons.settings),
-              label: 'Settings',
-            ),
-          ],
+        // The Watchlist icon carries a badge while there are new breaches the
+        // user hasn't looked at.
+        child: ListenableBuilder(
+          listenable: widget.watchlist,
+          builder: (context, _) {
+            final newBreaches = widget.watchlist.newBreachCount;
+
+            return NavigationBar(
+              selectedIndex: _selectedIndex,
+              onDestinationSelected: (index) => setState(() => _selectedIndex = index),
+              destinations: [
+                const NavigationDestination(
+                  icon: Icon(Icons.home_outlined),
+                  selectedIcon: Icon(Icons.home),
+                  label: 'Home',
+                ),
+                const NavigationDestination(
+                  icon: Icon(Icons.insights_outlined),
+                  selectedIcon: Icon(Icons.insights),
+                  label: 'Insights',
+                ),
+                NavigationDestination(
+                  icon: Badge(
+                    isLabelVisible: newBreaches > 0,
+                    label: Text('$newBreaches'),
+                    child: const Icon(Icons.visibility_outlined),
+                  ),
+                  selectedIcon: Badge(
+                    isLabelVisible: newBreaches > 0,
+                    label: Text('$newBreaches'),
+                    child: const Icon(Icons.visibility),
+                  ),
+                  label: 'Watchlist',
+                ),
+                const NavigationDestination(
+                  icon: Icon(Icons.settings_outlined),
+                  selectedIcon: Icon(Icons.settings),
+                  label: 'Settings',
+                ),
+              ],
+            );
+          },
         ),
       ),
     );

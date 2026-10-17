@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../core/app_colors.dart';
+import '../core/lottie_assets.dart';
 import '../models/breach.dart';
-import '../services/breach_api_service.dart';
 import '../state/email_check_controller.dart';
+import '../utils/failure_text.dart';
 import 'breach_tile.dart';
+import 'exposr_lottie.dart';
 import 'pill.dart';
 import 'status_panel.dart';
 
@@ -26,8 +28,9 @@ class CheckResults extends StatelessWidget {
 
         // switch over a sealed class: the compiler checks every case is here.
         final Widget content = switch (state) {
-          // While loading, the button shows the spinner; nothing else to add.
-          LookupIdle() || LookupLoading() => const SizedBox(width: double.infinity),
+          LookupIdle() => const SizedBox(width: double.infinity),
+          // While the request runs, a looping radar animation says "working".
+          LookupLoading() => const _ScanningPanel(),
           final LookupBreached breached => _BreachedPanel(
               state: breached,
               onShowDetails: controller.loadDetails,
@@ -35,6 +38,7 @@ class CheckResults extends StatelessWidget {
           LookupClean(:final email) => StatusPanel(
               tone: AppColors.success,
               icon: Icons.check_circle_outline,
+              animationAsset: LottieAssets.success,
               title: 'No breaches found',
               message: 'XposedOrNot has no record of $email in the breaches it tracks. '
                   'Hey! That is great news, but not a guarantee. '
@@ -43,8 +47,8 @@ class CheckResults extends StatelessWidget {
           LookupFailed(:final email, :final failure) => StatusPanel(
               tone: AppColors.warning,
               icon: Icons.error_outline,
-              title: _failureTitle(failure),
-              message: _failureMessage(failure),
+              title: failureTitle(failure),
+              message: failureMessage(failure),
               children: [
                 // Retry with the same address.
                 OutlinedButton(
@@ -55,7 +59,7 @@ class CheckResults extends StatelessWidget {
             ),
         };
 
-        final hasResult = state is! LookupIdle && state is! LookupLoading;
+        final hasContent = state is! LookupIdle;
 
         // AnimatedSize smoothly grows or shrinks the area as results change.
         return AnimatedSize(
@@ -63,11 +67,37 @@ class CheckResults extends StatelessWidget {
           curve: Curves.easeOut,
           alignment: Alignment.topCenter,
           child: Padding(
-            padding: EdgeInsets.only(top: hasResult ? 16 : 0),
+            padding: EdgeInsets.only(top: hasContent ? 16 : 0),
             child: content,
           ),
         );
       },
+    );
+  }
+}
+
+/// Shown while a check is running: a looping radar sweep around a shield.
+class _ScanningPanel extends StatelessWidget {
+  const _ScanningPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Semantics(
+      liveRegion: true,
+      label: 'Searching known breaches',
+      child: ExcludeSemantics(
+        child: Column(
+          children: [
+            const ExposrLottie(asset: LottieAssets.scan, size: 120, loop: true),
+            Text(
+              'Searching known breaches…',
+              style: textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -92,6 +122,7 @@ class _BreachedPanel extends StatelessWidget {
     return StatusPanel(
       tone: AppColors.error,
       icon: Icons.warning_amber_rounded,
+      animationAsset: LottieAssets.alert,
       title: 'Found in $count ${count == 1 ? 'breach' : 'breaches'}',
       message: '${state.email} appears in known data breaches. Please change the password ASAP for any accounts that used it, '
           'and turn on two-factor '
@@ -119,7 +150,8 @@ class _BreachedPanel extends StatelessWidget {
         return [
           OutlinedButton(onPressed: onShowDetails, child: const Text('Show details')),
           Text(
-            'Details use one more request from the free hourly limit.',
+            'Details use one more request from the free hourly limit. '
+            'They also unlock the Insights tab.',
             textAlign: TextAlign.center,
             style: muted,
           ),
@@ -152,7 +184,7 @@ class _BreachedPanel extends StatelessWidget {
         ];
       case DetailsFailed(:final failure):
         return [
-          Text(_failureMessage(failure), style: muted),
+          Text(failureMessage(failure), style: muted),
           OutlinedButton(onPressed: onShowDetails, child: const Text('Try again')),
         ];
     }
@@ -176,36 +208,5 @@ class _TileList extends StatelessWidget {
         ],
       ],
     );
-  }
-}
-
-String _failureTitle(BreachApiFailure failure) {
-  switch (failure) {
-    case BreachApiFailure.noConnection:
-      return 'Couldn’t connect';
-    case BreachApiFailure.timeout:
-      return 'Request timed out';
-    case BreachApiFailure.rateLimited:
-      return 'Too many checks';
-    case BreachApiFailure.serverError:
-      return 'Service unavailable';
-    case BreachApiFailure.unexpectedResponse:
-      return 'Unexpected response';
-  }
-}
-
-String _failureMessage(BreachApiFailure failure) {
-  switch (failure) {
-    case BreachApiFailure.noConnection:
-      return 'Couldn’t reach XposedOrNot. Check your internet connection and try again.';
-    case BreachApiFailure.timeout:
-      return 'XposedOrNot took too long to answer. Try again in a moment.';
-    case BreachApiFailure.rateLimited:
-      return 'XposedOrNot’s free service limits how many checks each network can make '
-          'per hour and per day, and that limit has been reached. Wait a while, then try again.';
-    case BreachApiFailure.serverError:
-      return 'XposedOrNot is having problems right now. Try again later.';
-    case BreachApiFailure.unexpectedResponse:
-      return 'XposedOrNot sent a reply this app couldn’t understand. Try again later.';
   }
 }

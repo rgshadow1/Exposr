@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Exposr uses Face ID to keep your watchlist private when the app lock is on.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>Exposr uses motion sensing so you can shake your phone to hide the screen.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

@@ -107,7 +107,7 @@ class _FeatureCards extends StatelessWidget {
     const privacy = FeatureCard(
       icon: Icons.lock_outline,
       title: 'Privacy first',
-      description: 'No passwords and no sign-in. Only the email you enter is sent.',
+      description: 'No passwords and no sign-in. Only addresses you check are sent.',
     );
     const intelligence = FeatureCard(
       icon: Icons.travel_explore,

@@ -3,6 +3,8 @@
          the debug/profile manifests, so without it release builds have no
          network access. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Lets the app ask for a fingerprint or face check (the optional app lock). -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
 
     <application
         android:label="Exposr"

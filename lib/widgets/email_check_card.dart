@@ -35,10 +35,23 @@ class _EmailCheckCardState extends State<EmailCheckCard> {
   AutovalidateMode _autovalidateMode = AutovalidateMode.disabled;
 
   @override
+  void initState() {
+    super.initState();
+    widget.controller.inputWipes.addListener(_onWipe);
+  }
+
+  @override
   void dispose() {
     // Anything a State creates, it must dispose, or it leaks.
+    widget.controller.inputWipes.removeListener(_onWipe);
     _emailController.dispose();
     super.dispose();
+  }
+
+  /// "Shake to hide" (or Clear all data) asked for the typed address to go.
+  void _onWipe() {
+    _emailController.clear();
+    setState(() => _autovalidateMode = AutovalidateMode.disabled);
   }
 
   void _onEmailChanged(String _) {
@@ -166,8 +179,9 @@ class _EmailCheckCardState extends State<EmailCheckCard> {
                       Expanded(
                         child: Text(
                           'The address is sent over HTTPS to XposedOrNot to run the '
-                          'check. This app doesn’t store it. Only check addresses '
-                          'you own or have permission to check.',
+                          'check. It is only saved on this device if you add it to '
+                          'your Watchlist. Only check addresses you own or have '
+                          'permission to check.',
                           style: textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
                         ),
                       ),
