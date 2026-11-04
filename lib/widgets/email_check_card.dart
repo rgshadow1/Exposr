@@ -5,7 +5,7 @@ import '../state/email_check_controller.dart';
 import '../utils/email_validator.dart';
 import 'icon_badge.dart';
 
-/// The main card: an email field, a "Check Email" button and a privacy note.
+/// The main card: an email field and a "Check Email" button.
 ///
 /// It owns only what belongs to the form itself: the text being typed and
 /// whether to show validation errors yet. The lookup and its results live in
@@ -160,32 +160,6 @@ class _EmailCheckCardState extends State<EmailCheckCard> {
                             ],
                           )
                         : const Text('Check Email'),
-                  ),
-                  const SizedBox(height: 14),
-                  // Accurate by construction: it says where the address goes,
-                  // and what this app does (and doesn't do) with it.
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Padding(
-                        padding: EdgeInsets.only(top: 2),
-                        child: Icon(
-                          Icons.lock_outline,
-                          size: 14,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'The address is sent over HTTPS to XposedOrNot to run the '
-                          'check. It is only saved on this device if you add it to '
-                          'your Watchlist. Only check addresses you own or have '
-                          'permission to check.',
-                          style: textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
-                        ),
-                      ),
-                    ],
                   ),
                 ],
               );

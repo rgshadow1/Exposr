@@ -43,16 +43,16 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('shows the header, welcome text, check card and feature cards', (tester) async {
+  testWidgets('shows the header, welcome text and check card', (tester) async {
     await pumpApp(tester);
 
     expect(find.text('Exposr'), findsOneWidget);
     expect(find.byType(Image), findsOneWidget); // the logo
     expect(find.textContaining('Welcome'), findsOneWidget);
     expect(checkButton, findsOneWidget);
-    expect(find.text('Privacy first'), findsOneWidget);
-    expect(find.text('Breach intelligence'), findsOneWidget);
-    expect(find.textContaining('sent over HTTPS to XposedOrNot'), findsOneWidget);
+    expect(find.text('Privacy first'), findsNothing);
+    expect(find.text('Breach intelligence'), findsNothing);
+    expect(find.textContaining('sent over HTTPS to XposedOrNot'), findsNothing);
 
     final nav = find.byType(NavigationBar);
     for (final label in ['Home', 'Insights', 'Watchlist', 'Settings']) {

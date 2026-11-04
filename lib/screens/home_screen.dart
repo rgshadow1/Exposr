@@ -5,10 +5,8 @@ import '../state/email_check_controller.dart';
 import '../widgets/app_header.dart';
 import '../widgets/check_results.dart';
 import '../widgets/email_check_card.dart';
-import '../widgets/feature_card.dart';
 
-/// The Home tab: header, welcome text, the email check card, its results and
-/// the feature cards.
+/// The Home tab: header, welcome text, the email check card and its results.
 ///
 /// A widget is a small description of a piece of UI, and screens are built by
 /// nesting widgets. This one is a [StatelessWidget] because it holds no data
@@ -69,8 +67,6 @@ class HomeScreen extends StatelessWidget {
                   const SizedBox(height: 24),
                   EmailCheckCard(controller: controller),
                   CheckResults(controller: controller),
-                  const SizedBox(height: 16),
-                  const _FeatureCards(),
                   const SizedBox(height: 24),
                   const _Attribution(),
                 ],
@@ -93,50 +89,6 @@ class _Attribution extends StatelessWidget {
       'Breach data provided by XposedOrNot.',
       textAlign: TextAlign.center,
       style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textHint),
-    );
-  }
-}
-
-/// The two small feature cards: side by side normally, stacked when the
-/// screen is narrow or the user has set a large text size.
-class _FeatureCards extends StatelessWidget {
-  const _FeatureCards();
-
-  @override
-  Widget build(BuildContext context) {
-    const privacy = FeatureCard(
-      icon: Icons.lock_outline,
-      title: 'Privacy first',
-      description: 'No passwords and no sign-in. Only addresses you check are sent.',
-    );
-    const intelligence = FeatureCard(
-      icon: Icons.travel_explore,
-      title: 'Breach intelligence',
-      description: 'Checked against XposedOrNot’s database of known data breaches.',
-    );
-
-    final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 340 || textScale > 1.3) {
-          return const Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [privacy, SizedBox(height: 12), intelligence],
-          );
-        }
-        // IntrinsicHeight makes both cards as tall as the taller one.
-        return const IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(child: privacy),
-              SizedBox(width: 12),
-              Expanded(child: intelligence),
-            ],
-          ),
-        );
-      },
     );
   }
 }
