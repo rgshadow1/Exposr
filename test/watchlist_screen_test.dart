@@ -45,7 +45,15 @@ void main() {
 
     expect(find.text('Watchlist'), findsOneWidget);
     expect(find.text('Nothing on your watchlist'), findsOneWidget);
-    expect(find.textContaining('saved on this device only'), findsOneWidget);
+    expect(find.textContaining('kept on this device'), findsOneWidget);
+    expect(find.textContaining('sends the address to XposedOrNot over HTTPS'), findsOneWidget);
+  });
+
+  testWidgets('does not claim to monitor addresses in the background', (tester) async {
+    await pumpScreen(tester);
+
+    expect(find.textContaining('only when you ask, never in the background'), findsOneWidget);
+    expect(find.textContaining('flags any breach that turns up later'), findsNothing);
   });
 
   testWidgets('adding a clean address shows it as checked, with no breaches', (tester) async {
@@ -54,7 +62,9 @@ void main() {
     await addAddress(tester, 'name@example.com');
 
     expect(watchlist.entries.single.email, 'name@example.com');
-    expect(find.text('No breaches'), findsOneWidget);
+    // "No known breaches", with an icon: a status, not a promise.
+    expect(find.text('No known breaches'), findsOneWidget);
+    expect(find.byIcon(Icons.check_circle_outline), findsOneWidget);
     expect(find.text('Checked just now'), findsOneWidget);
     expect(find.text('1 of ${WatchlistController.maxEntries} addresses'), findsOneWidget);
     expect(service.checked, ['name@example.com']);
@@ -108,6 +118,37 @@ void main() {
 
     expect(find.text('Not checked'), findsOneWidget);
     expect(find.textContaining('Couldn’t connect.'), findsOneWidget);
+    // A failed check is never shown as a clean one.
+    expect(find.text('No known breaches'), findsNothing);
+  });
+
+  testWidgets('a failed re-check keeps the earlier result instead of clearing it', (tester) async {
+    await pumpScreen(tester);
+    service.breaches['name@example.com'] = ['Adobe'];
+    await addAddress(tester, 'name@example.com');
+
+    service.failures['name@example.com'] = BreachApiFailure.rateLimited;
+    await tester.tap(find.text('Check now'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 breach'), findsOneWidget);
+    expect(find.text('Adobe'), findsOneWidget);
+    expect(find.textContaining('Too many checks.'), findsOneWidget);
+    expect(find.text('No known breaches'), findsNothing);
+  });
+
+  testWidgets('a long address and large text fit a small phone', (tester) async {
+    await pumpScreen(tester);
+    tester.view.physicalSize = const Size(320, 2400);
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    const long = 'a.very.long.address.for.testing.layout@subdomain.example.com';
+    service.breaches[long] = ['Adobe', 'LinkedIn', 'A Breach With A Long Name Collection'];
+
+    await addAddress(tester, long);
+
+    expect(find.text(long), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('an invalid address is refused with a message and not checked', (tester) async {

@@ -48,21 +48,29 @@ class XposedOrNotService implements BreachApiService {
 
     final response = await _get(url);
 
-    // 404 is the API's normal way of saying "not in any breach".
-    if (response.statusCode == 404) return EmailClean(email);
-    _throwForBadStatus(response);
+    // "Not in any breach" is answered with {"Error": "Not found"}: with a 200
+    // on the live service, with a 404 in its documentation. Both are accepted,
+    // but only with that body, so a 404 from anything else (a proxy, a moved
+    // endpoint) is reported as a failure instead of as a clean result.
+    final isNotFoundStatus = response.statusCode == 404;
+    if (!isNotFoundStatus) _throwForBadStatus(response);
 
     final body = _decodeObject(response);
-    final names = _flattenNames(body['breaches']);
 
-    if (names.isNotEmpty) return EmailBreached(email, names);
-
-    // No names: either a clean address, or an error object we don't know.
     final error = body['Error'] ?? body['error'];
-    if (error == null || error.toString().toLowerCase().contains('not found')) {
-      return EmailClean(email);
+    if (error != null) {
+      if (error.toString().toLowerCase().contains('not found')) return EmailClean(email);
+      throw const BreachApiException(BreachApiFailure.unexpectedResponse);
     }
-    throw const BreachApiException(BreachApiFailure.unexpectedResponse);
+
+    // A clean result needs an explicit signal: the error above, or a list of
+    // breaches that is present and empty. A 404 without that error, a body
+    // with no `breaches`, or a list holding something other than names is an
+    // unknown answer, and an unknown answer must never read as "clean".
+    final names = isNotFoundStatus ? null : _flattenNames(body['breaches']);
+    if (names == null) throw const BreachApiException(BreachApiFailure.unexpectedResponse);
+
+    return names.isEmpty ? EmailClean(email) : EmailBreached(email, names);
   }
 
   @override
@@ -72,13 +80,16 @@ class XposedOrNotService implements BreachApiService {
     );
 
     final response = await _get(url);
-    if (response.statusCode == 404) return const [];
     _throwForBadStatus(response);
 
     final body = _decodeObject(response);
 
-    // For an address that isn't in any breach the API answers 200 with every
-    // field null, so a missing list simply means "no details".
+    // For an address that isn't in any breach the API answers 200 with
+    // `ExposedBreaches: null`, which simply means "no details". A body with
+    // no such key at all is not that answer, so it is reported as a failure.
+    if (!body.containsKey('ExposedBreaches')) {
+      throw const BreachApiException(BreachApiFailure.unexpectedResponse);
+    }
     final exposed = body['ExposedBreaches'];
     final list = exposed is Map<String, dynamic> ? exposed['breaches_details'] : null;
     if (list is! List<dynamic>) return const [];
@@ -103,6 +114,10 @@ class XposedOrNotService implements BreachApiService {
 
   /// Performs the GET and turns every transport problem into a
   /// [BreachApiException], so nothing else escapes this class.
+  ///
+  /// The original error is deliberately dropped rather than wrapped or
+  /// logged: its message can contain the request URL, and the URL contains
+  /// the email address.
   Future<http.Response> _get(Uri url) async {
     try {
       return await _client.get(url, headers: _headers).timeout(_timeout);
@@ -135,8 +150,14 @@ class XposedOrNotService implements BreachApiService {
 
   /// The API has returned `breaches` both as `[["A","B"]]` and as `["A","B"]`.
   /// This flattens either into one list of unique, non-empty names.
-  static List<String> _flattenNames(Object? raw) {
+  ///
+  /// Returns null when [raw] isn't a list, or holds anything other than text
+  /// and nested lists: that is not a shape this app understands.
+  static List<String>? _flattenNames(Object? raw) {
+    if (raw is! List<dynamic>) return null;
+
     final names = <String>{}; // a Set keeps first-seen order and drops repeats
+    var understood = true;
 
     void visit(Object? node) {
       if (node is String) {
@@ -144,10 +165,12 @@ class XposedOrNotService implements BreachApiService {
         if (name.isNotEmpty) names.add(name);
       } else if (node is List<dynamic>) {
         node.forEach(visit);
+      } else {
+        understood = false;
       }
     }
 
     visit(raw);
-    return names.toList();
+    return understood ? names.toList() : null;
   }
 }

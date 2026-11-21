@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../models/breach.dart';
@@ -66,6 +68,18 @@ final class LookupFailed extends LookupState {
   final BreachApiFailure failure;
 }
 
+/// How a check the user started came to an end.
+enum CheckOutcome {
+  /// The address is in at least one known breach.
+  breached,
+
+  /// The service has no record of the address.
+  clean,
+
+  /// The check didn't complete, so there is no result.
+  failed,
+}
+
 /// Runs lookups and exposes their progress to the UI.
 ///
 /// A [ChangeNotifier] keeps a list of listeners and calls them whenever
@@ -87,6 +101,23 @@ class EmailCheckController extends ChangeNotifier {
   int _generation = 0;
   bool _disposed = false;
 
+  /// A synchronous stream, so a listener hears about a completed check in the
+  /// same instant the state changes, not a moment later.
+  final StreamController<CheckOutcome> _completions =
+      StreamController<CheckOutcome>.broadcast(sync: true);
+
+  /// Emits once each time a check started by [check] finishes and is accepted
+  /// as what the screen now shows.
+  ///
+  /// This is the one place to hang anything that should happen exactly once
+  /// per completed check (sound and haptic feedback, for instance). It is not
+  /// derived from the state, so nothing else can set it off: not a rebuild,
+  /// not [loadDetails], not [reset], and not a reply that arrives after the
+  /// user has moved on, which is thrown away before this point.
+  Stream<CheckOutcome> get completions => _completions.stream;
+
+  /// Starts a check. Called only in response to the user: the button, Enter
+  /// in the field, or "Try again".
   Future<void> check(String email) async {
     if (isLoading) return;
 
@@ -97,18 +128,29 @@ class EmailCheckController extends ChangeNotifier {
       final result = await _service.checkEmail(email);
       if (generation != _generation) return;
 
-      _set(switch (result) {
-        EmailBreached(:final email, :final breachNames) => LookupBreached(email, breachNames),
-        EmailClean(:final email) => LookupClean(email),
-      });
+      switch (result) {
+        case EmailBreached(:final email, :final breachNames):
+          _complete(LookupBreached(email, breachNames), CheckOutcome.breached);
+        case EmailClean(:final email):
+          _complete(LookupClean(email), CheckOutcome.clean);
+      }
     } on BreachApiException catch (error) {
       if (generation != _generation) return;
-      _set(LookupFailed(email, error.failure));
+      _complete(LookupFailed(email, error.failure), CheckOutcome.failed);
     } catch (_) {
       // Defensive: whatever went wrong, never leave the screen stuck loading.
       if (generation != _generation) return;
-      _set(LookupFailed(email, BreachApiFailure.unexpectedResponse));
+      _complete(LookupFailed(email, BreachApiFailure.unexpectedResponse), CheckOutcome.failed);
     }
+  }
+
+  /// Shows the end of the current check and announces it, in that order.
+  /// Only [check] calls this, and only after confirming the reply still
+  /// belongs to the search on screen.
+  void _complete(LookupState next, CheckOutcome outcome) {
+    if (_disposed) return;
+    _set(next);
+    _completions.add(outcome);
   }
 
   /// The breach details fetched for the address on screen, or an empty list
@@ -172,6 +214,7 @@ class EmailCheckController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     inputWipes.dispose();
+    _completions.close();
     super.dispose();
   }
 }

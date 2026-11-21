@@ -41,12 +41,12 @@ void main() {
         return jsonResponse({'breaches': <Object>[], 'email': 'x', 'status': 'success'});
       });
 
-      await service.checkEmail('hdamohammed9@gmail.com');
+      await service.checkEmail('name@example.com');
 
       expect(seen.method, 'GET');
       expect(
         seen.url.toString(),
-        'https://api.xposedornot.com/v1/check-email/hdamohammed9%40gmail.com'
+        'https://api.xposedornot.com/v1/check-email/name%40example.com'
         '?include_details=false',
       );
       expect(seen.headers['accept'], 'application/json');
@@ -98,10 +98,66 @@ void main() {
       expect(await service.checkEmail('name@example.com'), isA<EmailClean>());
     });
 
+    test('200 with the not-found body is clean (what the live service sends)', () async {
+      final service = serviceFor(
+        (_) async => jsonResponse({'Error': 'Not found', 'email': null}),
+      );
+
+      expect(await service.checkEmail('name@example.com'), isA<EmailClean>());
+    });
+
     test('200 with an empty list is also clean', () async {
       final service = serviceFor((_) async => jsonResponse({'breaches': <Object>[]}));
 
       expect(await service.checkEmail('name@example.com'), isA<EmailClean>());
+    });
+
+    test('200 with an empty nested list is clean too', () async {
+      final service = serviceFor(
+        (_) async => jsonResponse({
+          'breaches': [<Object>[]],
+        }),
+      );
+
+      expect(await service.checkEmail('name@example.com'), isA<EmailClean>());
+    });
+
+    group('an answer it cannot read is a failure, never a clean result', () {
+      final unreadable = <String, http.Response>{
+        'a 404 that is not the documented not-found reply': http.Response('<h1>Not Found</h1>', 404),
+        'a 404 with some other JSON': http.Response(jsonEncode({'detail': 'no route'}), 404),
+        'a 404 that lists breaches': http.Response(
+          jsonEncode({
+            'breaches': ['Adobe'],
+          }),
+          404,
+        ),
+        'an empty object': http.Response('{}', 200),
+        'an object with no breaches key': http.Response(jsonEncode({'status': 'success'}), 200),
+        'breaches set to null': http.Response(jsonEncode({'breaches': null}), 200),
+        'breaches that is not a list': http.Response(jsonEncode({'breaches': 'none'}), 200),
+        'a list holding something other than names': http.Response(
+          jsonEncode({
+            'breaches': [
+              {'name': 'Adobe'},
+            ],
+          }),
+          200,
+        ),
+        'a JSON array instead of an object': http.Response('[]', 200),
+        'an empty body': http.Response('', 200),
+      };
+
+      for (final MapEntry(key: description, value: response) in unreadable.entries) {
+        test(description, () async {
+          final service = serviceFor((_) async => response);
+
+          await expectFailure(
+            service.checkEmail('name@example.com'),
+            BreachApiFailure.unexpectedResponse,
+          );
+        });
+      }
     });
 
     test('429 is reported as rate limited, with no automatic retry', () async {
@@ -161,6 +217,24 @@ void main() {
       );
 
       await expectFailure(service.checkEmail('name@example.com'), BreachApiFailure.timeout);
+    });
+
+    test('the error it throws never carries the address', () async {
+      // The underlying error names the full URL, which contains the address.
+      final service = serviceFor(
+        (request) async => throw http.ClientException('Failed host lookup', request.url),
+      );
+
+      Object? caught;
+      try {
+        await service.checkEmail('private.person@example.com');
+      } catch (error) {
+        caught = error;
+      }
+
+      expect(caught, isA<BreachApiException>());
+      expect(caught.toString(), isNot(contains('private.person')));
+      expect(caught.toString(), isNot(contains('example.com')));
     });
   });
 
@@ -236,6 +310,36 @@ void main() {
       await expectFailure(
         service.fetchBreachDetails('name@example.com'),
         BreachApiFailure.rateLimited,
+      );
+    });
+
+    test('a reply without the ExposedBreaches field is a failure, not "no details"', () async {
+      final service = serviceFor((_) async => jsonResponse({'status': 'maintenance'}));
+
+      await expectFailure(
+        service.fetchBreachDetails('name@example.com'),
+        BreachApiFailure.unexpectedResponse,
+      );
+    });
+
+    test('a 404 is a failure, not "no details"', () async {
+      final service = serviceFor((_) async => http.Response('<h1>Not Found</h1>', 404));
+
+      await expectFailure(
+        service.fetchBreachDetails('name@example.com'),
+        BreachApiFailure.unexpectedResponse,
+      );
+    });
+
+    test('a timeout is reported as a timeout', () async {
+      final service = serviceFor(
+        (_) => Completer<http.Response>().future,
+        timeout: const Duration(milliseconds: 20),
+      );
+
+      await expectFailure(
+        service.fetchBreachDetails('name@example.com'),
+        BreachApiFailure.timeout,
       );
     });
   });

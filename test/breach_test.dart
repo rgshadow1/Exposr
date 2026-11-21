@@ -1,73 +1,119 @@
 import 'package:breach_checker/models/breach.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+/// Tests the parser against the shape XposedOrNot's breach-analytics endpoint
+/// documents for one entry of `ExposedBreaches.breaches_details`.
 void main() {
   group('Breach.fromJson', () {
-    test('parses a full HIBP breach object', () {
+    test('parses a full entry', () {
       final breach = Breach.fromJson(const {
-        'Name': 'Adobe',
-        'Title': 'Adobe',
-        'Domain': 'adobe.com',
-        'BreachDate': '2013-10-04',
-        'AddedDate': '2013-12-04T00:00:00Z',
-        'PwnCount': 152445165,
-        'Description': 'In October 2013, 153 million <em>Adobe</em> accounts were breached.',
-        'DataClasses': ['Email addresses', 'Password hints', 'Passwords', 'Usernames'],
-        'IsVerified': true,
-        'IsFabricated': false,
-        'IsSensitive': false,
-        'IsRetired': false,
-        'IsSpamList': false,
-        'IsMalware': false,
-        'IsStealerLog': false,
-        'LogoPath': 'Adobe.png',
+        'breach': 'SweClockers',
+        'details': 'SweClockers experienced a data breach in early 2015.',
+        'domain': 'sweclockers.com',
+        'industry': 'Electronics',
+        'logo': 'Sweclockers.png',
+        'password_risk': 'hardtocrack',
+        'references': 'https://example.com/report',
+        'searchable': 'Yes',
+        'verified': 'Yes',
+        'xposed_data': 'Usernames;Email addresses;Passwords',
+        'xposed_date': '2015',
+        'xposed_records': 254967,
       });
 
-      expect(breach.name, 'Adobe');
-      expect(breach.title, 'Adobe');
-      expect(breach.domain, 'adobe.com');
-      expect(breach.breachDate, DateTime(2013, 10, 4));
-      expect(breach.pwnCount, 152445165);
-      expect(breach.description, 'In October 2013, 153 million Adobe accounts were breached.');
-      expect(breach.dataClasses, ['Email addresses', 'Password hints', 'Passwords', 'Usernames']);
-      expect(breach.isVerified, isTrue);
-      expect(breach.isSpamList, isFalse);
-      expect(breach.infoUrl.toString(), 'https://haveibeenpwned.com/PwnedWebsites#Adobe');
+      expect(breach.name, 'SweClockers');
+      expect(breach.domain, 'sweclockers.com');
+      expect(breach.industry, 'Electronics');
+      expect(breach.date, '2015');
+      expect(breach.year, 2015);
+      expect(breach.records, 254967);
+      expect(breach.exposedData, ['Usernames', 'Email addresses', 'Passwords']);
+      expect(breach.passwordRisk, PasswordRisk.hardToCrack);
+      expect(breach.description, 'SweClockers experienced a data breach in early 2015.');
+      expect(breach.reference, Uri.parse('https://example.com/report'));
+      expect(breach.verified, isTrue);
     });
 
-    test('only Name is required; missing fields fall back safely', () {
-      final breach = Breach.fromJson(const {'Name': 'Example'});
+    test('an almost empty entry still parses, with nothing made up', () {
+      final breach = Breach.fromJson(const {'breach': 'Mystery'});
 
-      expect(breach.title, 'Example');
-      expect(breach.domain, isNull);
-      expect(breach.breachDate, isNull);
-      expect(breach.pwnCount, isNull);
-      expect(breach.description, isEmpty);
-      expect(breach.dataClasses, isEmpty);
-      expect(breach.isVerified, isTrue);
+      expect(breach.name, 'Mystery');
+      expect(breach.date, isNull);
+      expect(breach.year, isNull);
+      expect(breach.records, isNull);
+      expect(breach.exposedData, isEmpty);
+      expect(breach.description, isNull);
+      expect(breach.reference, isNull);
+      expect(breach.verified, isFalse);
     });
 
-    test('ignores fields with unexpected types', () {
+    test('a missing or unrecognised password risk is unknown, never good news', () {
+      expect(Breach.fromJson(const {'breach': 'A'}).passwordRisk, PasswordRisk.unknown);
+      expect(
+        Breach.fromJson(const {'breach': 'A', 'password_risk': ''}).passwordRisk,
+        PasswordRisk.unknown,
+      );
+      expect(
+        Breach.fromJson(const {'breach': 'A', 'password_risk': 'something new'}).passwordRisk,
+        PasswordRisk.unknown,
+      );
+    });
+
+    test('reads the password risk however it is spelled', () {
+      PasswordRisk risk(String raw) =>
+          Breach.fromJson({'breach': 'A', 'password_risk': raw}).passwordRisk;
+
+      expect(risk('plaintext'), PasswordRisk.plaintext);
+      expect(risk('PlainText'), PasswordRisk.plaintext);
+      expect(risk('easytocrack'), PasswordRisk.easyToCrack);
+      expect(risk('Easy to crack'), PasswordRisk.easyToCrack);
+      expect(risk('hardtocrack'), PasswordRisk.hardToCrack);
+      expect(risk('unknown'), PasswordRisk.unknown);
+    });
+
+    test('record counts are accepted as numbers or text', () {
+      int? records(Object? raw) => Breach.fromJson({'breach': 'A', 'xposed_records': raw}).records;
+
+      expect(records(152445165), 152445165);
+      expect(records('152445165'), 152445165);
+      expect(records('152,445,165'), 152445165);
+      expect(records('lots'), isNull);
+    });
+
+    test('the year is the breach year at the start of the date', () {
+      int? year(String raw) => Breach.fromJson({'breach': 'A', 'xposed_date': raw}).year;
+
+      expect(year('2013'), 2013);
+      expect(year('2013-10-04'), 2013);
+      expect(year('unknown'), isNull);
+    });
+
+    test('HTML in a description becomes plain text on one line', () {
       final breach = Breach.fromJson(const {
-        'Name': 'Odd',
-        'Domain': '   ',
-        'BreachDate': 'not a date',
-        'PwnCount': '12',
-        'DataClasses': ['Emails', 42, null],
-        'IsVerified': 'yes',
+        'breach': 'A',
+        'details': '<p>Customer &amp; billing data.</p><p>Passwords were <em>hashed</em>.</p>',
       });
 
-      expect(breach.domain, isNull);
-      expect(breach.breachDate, isNull);
-      expect(breach.pwnCount, isNull);
-      expect(breach.dataClasses, ['Emails']);
-      expect(breach.isVerified, isTrue);
+      expect(breach.description, 'Customer & billing data. Passwords were hashed.');
     });
 
-    test('throws FormatException without a Name', () {
-      expect(() => Breach.fromJson(const {'Title': 'No name'}), throwsFormatException);
-      expect(() => Breach.fromJson(const {'Name': ''}), throwsFormatException);
-      expect(() => Breach.fromJson(const {'Name': 7}), throwsFormatException);
+    test('only an https reference is kept', () {
+      Uri? reference(String raw) => Breach.fromJson({'breach': 'A', 'references': raw}).reference;
+
+      expect(reference('https://example.com/a'), Uri.parse('https://example.com/a'));
+      expect(reference('http://example.com/a'), isNull);
+      expect(reference('javascript:alert(1)'), isNull);
+      expect(reference('not a link'), isNull);
+      expect(reference(''), isNull);
+    });
+
+    test('"verified" is true only when the API says so', () {
+      bool verified(Object? raw) => Breach.fromJson({'breach': 'A', 'verified': raw}).verified;
+
+      expect(verified('Yes'), isTrue);
+      expect(verified(true), isTrue);
+      expect(verified('No'), isFalse);
+      expect(verified(null), isFalse);
     });
   });
 }

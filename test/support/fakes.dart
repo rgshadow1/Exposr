@@ -7,6 +7,7 @@ import 'package:breach_checker/services/breach_api_service.dart';
 import 'package:breach_checker/services/haptics_service.dart';
 import 'package:breach_checker/services/link_opener.dart';
 import 'package:breach_checker/services/shake_source.dart';
+import 'package:breach_checker/services/sound_service.dart';
 
 /// A [BreachApiService] that answers at once from a script.
 ///
@@ -41,18 +42,42 @@ class ScriptedBreachApiService implements BreachApiService {
   void close() {}
 }
 
-/// Records which vibration patterns were requested.
+/// Records which haptics were requested.
 class FakeHapticsService implements HapticsService {
+  FakeHapticsService({this.supported = true});
+
+  /// False stands in for a desktop or a browser, which has no haptics.
+  final bool supported;
+
   final List<String> calls = [];
+
+  @override
+  bool get isSupported => supported;
 
   @override
   Future<void> breached() async => calls.add('breached');
 
   @override
   Future<void> clean() async => calls.add('clean');
+}
+
+/// Records which sounds were requested, and how often they were loaded.
+class FakeSoundService implements SoundService {
+  final List<String> played = [];
+  int warmUps = 0;
+  bool disposed = false;
 
   @override
-  Future<void> failed() async => calls.add('failed');
+  Future<void> warmUp() async => warmUps++;
+
+  @override
+  Future<void> breached() async => played.add('breached');
+
+  @override
+  Future<void> clean() async => played.add('clean');
+
+  @override
+  Future<void> dispose() async => disposed = true;
 }
 
 /// A phone that is shaken whenever the test says so.

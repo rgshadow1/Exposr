@@ -1,81 +1,99 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import '../core/app_colors.dart';
+import '../core/app_tokens.dart';
+import '../services/link_opener.dart';
 import '../state/email_check_controller.dart';
-import '../widgets/app_header.dart';
+import '../widgets/app_page.dart';
+import '../widgets/check_panel.dart';
 import '../widgets/check_results.dart';
-import '../widgets/email_check_card.dart';
-import '../widgets/feature_card.dart';
+import '../widgets/radar_backdrop.dart';
 
-/// The Home tab: header, welcome text, the email check card, its results and
-/// the feature cards.
+/// The Home tab: the check panel, and under it the detail of the result.
 ///
-/// A widget is a small description of a piece of UI, and screens are built by
-/// nesting widgets. This one is a [StatelessWidget] because it holds no data
-/// that changes itself: the changing parts listen to the [controller].
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key, required this.controller});
+/// Everything sits in one centered column no wider than
+/// [AppSizes.contentWidth], at every window size. The panel is the obvious
+/// first thing to use; results arrive beneath it and never push it around.
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key, required this.controller, required this.links});
 
   final EmailCheckController controller;
+  final LinkOpener links;
 
-  /// On tablets the column stops growing so lines stay readable.
-  static const double _maxContentWidth = 560;
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  /// Putting the cursor in the field on arrival is helpful with a physical
+  /// keyboard. On a phone or tablet it would throw the on-screen keyboard
+  /// over the page, so it is left alone there.
+  static bool get _hasPhysicalKeyboard {
+    return switch (defaultTargetPlatform) {
+      TargetPlatform.windows || TargetPlatform.macOS || TargetPlatform.linux => true,
+      TargetPlatform.android || TargetPlatform.iOS || TargetPlatform.fuchsia => false,
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
     // LayoutBuilder tells us how much room we have so we can adapt to it.
     return LayoutBuilder(
       builder: (context, constraints) {
-        final horizontalPadding = constraints.maxWidth >= 600 ? 32.0 : 20.0;
+        final gutter = AppPage.gutterFor(constraints.maxWidth);
+        final wide = constraints.maxWidth >= 720;
+
+        // The height this tab has been given shrinks when the on-screen
+        // keyboard opens, on a phone held on its side, and in a short window.
+        // Whichever it is, there is little room, so the panel shows only what
+        // the field and button need.
+        final short = constraints.maxHeight < 520;
+
+        // On a tall window the panel sits a little lower, so the page doesn't
+        // read as a strip of content above an empty screen.
+        final lift = wide ? ((constraints.maxHeight - 760) * 0.25).clamp(0.0, 72.0) : 0.0;
+        final top = wide ? AppSpacing.xxl + lift : AppSpacing.lg;
 
         return SingleChildScrollView(
           // Dragging the page dismisses the keyboard, as users expect.
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          padding: EdgeInsets.fromLTRB(horizontalPadding, 16, horizontalPadding, 24),
-          // Layout: Center + ConstrainedBox caps the width; Column stacks the
-          // children vertically; SizedBox adds fixed gaps between them.
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: _maxContentWidth),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const AppHeader(),
-                  const SizedBox(height: 32),
-                  // textAlign centres each line inside the text's own box.
-                  // (Column's crossAxisAlignment.stretch gives that box the
-                  // full width, so "centre" means the middle of the screen.)
-                  Text.rich(
-                    const TextSpan(
-                      text: 'Welcome\n',
-                      children: [
-                        TextSpan(
-                          text: 'Is your email exposed?',
-                          style: TextStyle(color: AppColors.accentSoft),
-                        ),
-                      ],
-                    ),
-                    textAlign: TextAlign.center,
-                    style: textTheme.headlineMedium,
+          padding: EdgeInsets.fromLTRB(gutter, top, gutter, AppSpacing.xxxl),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              if (wide)
+                // The rings are centred on the mark: the panel's top padding plus
+                // half the mark's height below the top of the panel.
+                Positioned(
+                  top: -top,
+                  left: -gutter,
+                  right: -gutter,
+                  child: RadarBackdrop(centerY: top + 40 + 56),
+                ),
+              Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: AppSizes.contentWidth),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      CheckPanel(
+                        // A key keeps the typed address when the layout
+                        // changes shape around it.
+                        key: const GlobalObjectKey('check-panel'),
+                        controller: widget.controller,
+                        autofocus: _hasPhysicalKeyboard,
+                        compact: short,
+                      ),
+                      // The gap belongs to the results, so it disappears with
+                      // them when there is nothing to show.
+                      _ResultsGap(controller: widget.controller),
+                      CheckResults(controller: widget.controller, links: widget.links),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Find out whether an email address has appeared in known data breaches.',
-                    textAlign: TextAlign.center,
-                    style: textTheme.bodyLarge?.copyWith(color: AppColors.textSecondary),
-                  ),
-                  const SizedBox(height: 24),
-                  EmailCheckCard(controller: controller),
-                  CheckResults(controller: controller),
-                  const SizedBox(height: 16),
-                  const _FeatureCards(),
-                  const SizedBox(height: 24),
-                  const _Attribution(),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
         );
       },
@@ -83,59 +101,22 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-/// Credits the data source, as is good practice for any third-party data.
-class _Attribution extends StatelessWidget {
-  const _Attribution();
+/// Space above the results, present only while there are results.
+class _ResultsGap extends StatelessWidget {
+  const _ResultsGap({required this.controller});
+
+  final EmailCheckController controller;
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      'Breach data provided by XposedOrNot.',
-      textAlign: TextAlign.center,
-      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textHint),
-    );
-  }
-}
-
-/// The two small feature cards: side by side normally, stacked when the
-/// screen is narrow or the user has set a large text size.
-class _FeatureCards extends StatelessWidget {
-  const _FeatureCards();
-
-  @override
-  Widget build(BuildContext context) {
-    const privacy = FeatureCard(
-      icon: Icons.lock_outline,
-      title: 'Privacy first',
-      description: 'No passwords and no sign-in. Only addresses you check are sent.',
-    );
-    const intelligence = FeatureCard(
-      icon: Icons.travel_explore,
-      title: 'Breach intelligence',
-      description: 'Checked against XposedOrNot’s database of known data breaches.',
-    );
-
-    final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 340 || textScale > 1.3) {
-          return const Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [privacy, SizedBox(height: 12), intelligence],
-          );
-        }
-        // IntrinsicHeight makes both cards as tall as the taller one.
-        return const IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(child: privacy),
-              SizedBox(width: 12),
-              Expanded(child: intelligence),
-            ],
-          ),
-        );
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        final hasDetail = switch (controller.state) {
+          LookupIdle() || LookupLoading() => false,
+          _ => true,
+        };
+        return SizedBox(height: hasDetail ? AppSpacing.xxl : 0);
       },
     );
   }

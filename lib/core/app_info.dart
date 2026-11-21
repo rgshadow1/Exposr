@@ -9,4 +9,8 @@ abstract final class AppInfo {
   static const String developerRole = 'Computer Science student at the University of Dundee';
   static const String developerSite = 'https://mohamedhda.com';
   static const String developerSiteLabel = 'mohamedhda.com';
+
+  /// The breach database every check is sent to.
+  static const String providerSite = 'https://xposedornot.com';
+  static const String providerSiteLabel = 'xposedornot.com';
 }

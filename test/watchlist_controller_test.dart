@@ -6,6 +6,7 @@ import 'package:breach_checker/services/key_value_store.dart';
 import 'package:breach_checker/state/watchlist_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'support/fake_breach_api_service.dart';
 import 'support/fakes.dart';
 
 void main() {
@@ -277,6 +278,42 @@ void main() {
       expect(tolerant.entries.map((e) => e.email), ['ok@example.com']);
       expect(tolerant.entries.single.knownBreaches, isEmpty);
       expect(tolerant.entries.single.lastChecked, isNull);
+    });
+  });
+
+  group('a reply that arrives after the address was removed', () {
+    late FakeBreachApiService manual;
+    late WatchlistController list;
+
+    setUp(() {
+      // This fake holds each request open until the test answers it.
+      manual = FakeBreachApiService();
+      list = WatchlistController(service: manual, store: MemoryKeyValueStore());
+    });
+
+    tearDown(() => list.dispose());
+
+    test('a failure is not remembered', () async {
+      await list.add('a@b.co'); // its first check is now in flight
+      await list.remove('a@b.co');
+
+      manual.failCheck(BreachApiFailure.noConnection);
+      await pumpEventQueue();
+
+      expect(list.entries, isEmpty);
+      expect(list.failureFor('a@b.co'), isNull);
+      expect(list.isBusy, isFalse);
+    });
+
+    test('a result does not bring the address back', () async {
+      await list.add('a@b.co');
+      await list.remove('a@b.co');
+
+      manual.answerBreached('a@b.co', ['Adobe']);
+      await pumpEventQueue();
+
+      expect(list.entries, isEmpty);
+      expect(list.newBreachCount, 0);
     });
   });
 }

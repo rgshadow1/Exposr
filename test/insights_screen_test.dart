@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:breach_checker/core/app_colors.dart';
 import 'package:breach_checker/core/app_theme.dart';
 import 'package:breach_checker/models/breach.dart';
 import 'package:breach_checker/screens/insights_screen.dart';
@@ -93,9 +94,10 @@ void main() {
 
     // Headline numbers: 152,445,165 + 117,000,000 records.
     expect(find.text('Breaches'), findsOneWidget);
-    expect(find.text('Records exposed'), findsOneWidget);
+    // The size of the breaches, labelled as that and not as "your records".
+    expect(find.text('Records in these breaches'), findsOneWidget);
     expect(find.text('269.4M'), findsOneWidget);
-    expect(find.text('Most recent'), findsOneWidget);
+    expect(find.text('Most recent breach'), findsOneWidget);
 
     // The three charts.
     expect(find.text('Breaches by year'), findsOneWidget);
@@ -118,8 +120,35 @@ void main() {
     await loadDetails(tester, [sampleBreach, const Breach(name: 'Mystery', records: 10)]);
 
     expect(find.text('2013'), findsNWidgets(2)); // the "most recent" card and the chart
-    expect(find.text('Most recent'), findsOneWidget);
+    expect(find.text('Most recent breach'), findsOneWidget);
     expect(find.text('Breaches'), findsOneWidget);
+  });
+
+  testWidgets('the bars are drawn at their full height, in their own colours', (tester) async {
+    await pumpScreen(tester);
+    await findBreaches(tester);
+    await loadDetails(tester, [sampleBreach, linkedIn]);
+
+    Finder filled(Color color) {
+      return find.byWidgetPredicate((widget) => widget is ColoredBox && widget.color == color);
+    }
+
+    // "Passwords" is in both breaches, so its red bar runs the full width.
+    final passwords = tester.getSize(filled(AppColors.danger).first);
+    expect(passwords.height, greaterThan(0));
+    expect(passwords.width, greaterThan(100));
+
+    // The password-storage bar has a segment for each kind present.
+    expect(tester.getSize(filled(AppColors.warning).first).height, greaterThan(0));
+  });
+
+  testWidgets('a breach that says nothing about passwords is "Not stated"', (tester) async {
+    await pumpScreen(tester);
+    await findBreaches(tester);
+    await loadDetails(tester, [const Breach(name: 'Mystery', date: '2020')]);
+
+    expect(find.text('Not stated'), findsOneWidget);
+    expect(find.text('No passwords exposed'), findsNothing);
   });
 
   testWidgets('a failed details request can be retried', (tester) async {

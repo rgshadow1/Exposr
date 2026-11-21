@@ -133,15 +133,22 @@ class WatchlistController extends ChangeNotifier {
       };
       _applyResult(key, names);
     } on BreachApiException catch (error) {
-      _failures[key] = error.failure;
+      _recordFailure(key, error.failure);
     } catch (_) {
-      _failures[key] = BreachApiFailure.unexpectedResponse;
+      _recordFailure(key, BreachApiFailure.unexpectedResponse);
     } finally {
       _checking.remove(key);
     }
 
     _notify();
     await _persist();
+  }
+
+  /// Remembers why a check failed, unless the address was removed while the
+  /// request was running (a stale failure would otherwise reappear if the
+  /// same address were added again).
+  void _recordFailure(String key, BreachApiFailure failure) {
+    if (_indexOf(key) != -1) _failures[key] = failure;
   }
 
   void _applyResult(String key, List<String> names) {

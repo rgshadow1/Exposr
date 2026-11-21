@@ -8,6 +8,33 @@ class RemediationTask {
   final String detail;
 }
 
+/// The advice that applies whichever breaches an address was in. Shared by
+/// the Home results and the Watchlist checklist, so both say the same thing.
+const List<RemediationTask> generalRemediationTasks = [
+  RemediationTask(
+    id: 'unique-passwords',
+    title: 'Use a different password for every account',
+    detail: 'A password manager makes this practical.',
+  ),
+  RemediationTask(
+    id: 'two-factor',
+    title: 'Turn on two-factor authentication',
+    detail: 'An authenticator app is safer than text messages where it is offered.',
+  ),
+  RemediationTask(
+    id: 'phishing',
+    title: 'Be wary of messages that mention these services',
+    detail: 'Breached details are often used to make scam emails look genuine.',
+  ),
+];
+
+/// The first step after a breach, worded for a whole list of breaches at once.
+const RemediationTask changeAffectedPasswordsTask = RemediationTask(
+  id: 'change-passwords',
+  title: 'Change your password on each affected service',
+  detail: 'Then change it anywhere else you used the same one.',
+);
+
 /// The checklist for an address found in [breachNames].
 ///
 /// One "change your password" task per breach (the first [maxBreachTasks], so a
@@ -32,20 +59,6 @@ List<RemediationTask> remediationTasksFor(List<String> breachNames, {int maxBrea
         title: 'Review the other $hidden ${hidden == 1 ? 'breach' : 'breaches'}',
         detail: 'Open Insights after checking this address on Home to see them all.',
       ),
-    const RemediationTask(
-      id: 'unique-passwords',
-      title: 'Use a different password for every account',
-      detail: 'A password manager makes this practical.',
-    ),
-    const RemediationTask(
-      id: 'two-factor',
-      title: 'Turn on two-factor authentication',
-      detail: 'An authenticator app is safer than text messages where it is offered.',
-    ),
-    const RemediationTask(
-      id: 'phishing',
-      title: 'Be wary of messages that mention these services',
-      detail: 'Breached details are often used to make scam emails look genuine.',
-    ),
+    ...generalRemediationTasks,
   ];
 }

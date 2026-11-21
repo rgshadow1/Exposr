@@ -1,5 +1,10 @@
+import '../utils/html_text.dart';
+
 /// How well the passwords in a breach were protected, as XposedOrNot reports it.
-enum PasswordRisk { plaintext, easyToCrack, hardToCrack, none, unknown }
+///
+/// [unknown] covers both "the API said unknown" and "the API said nothing":
+/// a missing value is never read as good news.
+enum PasswordRisk { plaintext, easyToCrack, hardToCrack, unknown }
 
 /// One data breach, as described by XposedOrNot's breach-analytics endpoint.
 ///
@@ -16,6 +21,7 @@ class Breach {
     this.exposedData = const [],
     this.passwordRisk = PasswordRisk.unknown,
     this.description,
+    this.reference,
     this.verified = false,
   });
 
@@ -39,7 +45,9 @@ class Breach {
       records: int.tryParse((text('xposed_records') ?? '').replaceAll(',', '')),
       exposedData: _splitList(text('xposed_data')),
       passwordRisk: _parseRisk(text('password_risk')),
-      description: description == null ? null : _plainText(description),
+      // Descriptions can arrive as HTML. The app only ever shows plain text.
+      description: description == null ? null : _singleLine(HtmlText.toPlainText(description)),
+      reference: _parseReference(text('references')),
       verified: const {'yes', 'true'}.contains(text('verified')?.toLowerCase()),
     );
   }
@@ -48,10 +56,13 @@ class Breach {
   final String? domain;
   final String? industry;
 
-  /// The date as the API sent it (usually just a year such as "2013").
+  /// When the breach happened, as the API sent it: usually just a year such
+  /// as "2013". The API does not say when a breach was disclosed or added to
+  /// its database, so the app never shows a date for either.
   final String? date;
 
-  /// How many records were exposed, when known.
+  /// How many records the whole breach exposed, when known. This is the size
+  /// of the breach, not a count of this person's records.
   final int? records;
 
   /// Kinds of data exposed, such as "Email addresses" or "Passwords".
@@ -62,6 +73,10 @@ class Breach {
   /// Plain-text summary. Any HTML the API sent has been removed.
   final String? description;
 
+  /// A page about the breach, when the API gave an https link to one.
+  final Uri? reference;
+
+  /// True only when the API explicitly marked the breach as verified.
   final bool verified;
 
   /// The four-digit year at the start of [date], if there is one.
@@ -79,7 +94,7 @@ class Breach {
   }
 
   static PasswordRisk _parseRisk(String? raw) {
-    if (raw == null) return PasswordRisk.none;
+    if (raw == null) return PasswordRisk.unknown;
     // "Easy to crack", "easytocrack" and "EasyToCrack" all become one key.
     switch (raw.toLowerCase().replaceAll(RegExp(r'[^a-z]'), '')) {
       case 'plaintext':
@@ -88,25 +103,19 @@ class Breach {
         return PasswordRisk.easyToCrack;
       case 'hardtocrack':
         return PasswordRisk.hardToCrack;
-      case 'unknown':
-        return PasswordRisk.unknown;
       default:
         return PasswordRisk.unknown;
     }
   }
 
-  /// Descriptions can arrive as HTML. The app only ever shows plain text, so
-  /// tags are dropped and the common entities are decoded.
-  static String _plainText(String html) {
-    return html
-        .replaceAll(RegExp(r'<[^>]*>'), ' ')
-        .replaceAll('&nbsp;', ' ')
-        .replaceAll('&amp;', '&')
-        .replaceAll('&quot;', '"')
-        .replaceAll('&#39;', "'")
-        .replaceAll('&lt;', '<')
-        .replaceAll('&gt;', '>')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
+  /// Only a well-formed https link is kept: the app offers to open this in
+  /// the browser, so anything else the API might send is dropped.
+  static Uri? _parseReference(String? raw) {
+    if (raw == null) return null;
+    final uri = Uri.tryParse(raw);
+    if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) return null;
+    return uri;
   }
+
+  static String _singleLine(String text) => text.replaceAll(RegExp(r'\s+'), ' ').trim();
 }

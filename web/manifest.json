@@ -1,12 +1,11 @@
 {
-    "name": "breach_checker",
-    "short_name": "breach_checker",
+    "name": "Exposr",
+    "short_name": "Exposr",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
-    "orientation": "portrait-primary",
+    "background_color": "#0B0D11",
+    "theme_color": "#0B0D11",
+    "description": "Check whether an email address appears in known data breaches.",
     "prefer_related_applications": false,
     "icons": [
         {

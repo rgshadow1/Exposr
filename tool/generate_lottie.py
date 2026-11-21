@@ -200,8 +200,9 @@ def alert():
     shield = layer(1, "shield", [group([
         shield_path(), stroke(ERROR, 5), fill(ERROR, static(12)),
     ], "shield")], op,
-        s=anim([(0, [60, 60, 100]), (14, [112, 112, 100]), (24, [100, 100, 100])]),
-        r=anim([(24, 0), (30, -9), (38, 8), (46, -5), (54, 3), (62, 0)]),
+        # Scales in and settles. (An earlier version also rocked the shield
+        # from side to side; a result shouldn't shake, so that is gone.)
+        s=anim([(0, [60, 60, 100]), (14, [108, 108, 100]), (26, [100, 100, 100])]),
         o=anim([(0, 0), (8, 100)]))
     mark = layer(2, "mark", [group([
         path([[0, -24], [0, 8]]), stroke(ERROR, 9),

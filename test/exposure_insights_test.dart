@@ -88,14 +88,14 @@ void main() {
         breach('A', risk: PasswordRisk.plaintext),
         breach('B', risk: PasswordRisk.plaintext),
         breach('C', risk: PasswordRisk.easyToCrack),
-        breach('D', risk: PasswordRisk.none),
+        breach('D', risk: PasswordRisk.hardToCrack),
       ]);
 
-      // No entry at all for hardToCrack or unknown: they never appeared.
+      // No entry at all for unknown: it never appeared.
       expect(insights.passwordRiskCounts, {
         PasswordRisk.plaintext: 2,
         PasswordRisk.easyToCrack: 1,
-        PasswordRisk.none: 1,
+        PasswordRisk.hardToCrack: 1,
       });
     });
   });

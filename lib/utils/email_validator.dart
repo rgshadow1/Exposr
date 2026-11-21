@@ -2,7 +2,8 @@
 ///
 /// This is deliberately practical rather than a full RFC 5322 parser: it
 /// accepts the addresses people actually use and rejects obvious typos
-/// before we spend an API request on them. HIBP does its own validation too.
+/// before we spend an API request on them. The breach service does its own
+/// validation too.
 abstract final class EmailValidator {
   static const int _maxLength = 254;
   static const int _maxLocalLength = 64;

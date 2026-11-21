@@ -115,4 +115,64 @@ void main() {
 
     expect(service.detailEmails, isEmpty);
   });
+
+  group('completions', () {
+    late List<CheckOutcome> outcomes;
+
+    setUp(() {
+      outcomes = [];
+      controller.completions.listen(outcomes.add);
+    });
+
+    test('emits once, with the outcome, when a check finishes', () async {
+      final breached = controller.check('a@b.co');
+      expect(outcomes, isEmpty); // nothing while it is running
+      service.answerBreached('a@b.co', ['Adobe']);
+      await breached;
+      expect(outcomes, [CheckOutcome.breached]);
+
+      final clean = controller.check('a@b.co');
+      service.answerClean('a@b.co');
+      await clean;
+      final failed = controller.check('a@b.co');
+      service.failCheck(BreachApiFailure.serverError);
+      await failed;
+
+      expect(outcomes, [CheckOutcome.breached, CheckOutcome.clean, CheckOutcome.failed]);
+    });
+
+    test('the state has already changed by the time it emits', () async {
+      LookupState? seen;
+      controller.completions.listen((_) => seen = controller.state);
+
+      final pending = controller.check('a@b.co');
+      service.answerClean('a@b.co');
+      await pending;
+
+      expect(seen, isA<LookupClean>());
+    });
+
+    test('a reply discarded as stale emits nothing', () async {
+      final pending = controller.check('a@b.co');
+      controller.reset();
+      service.answerBreached('a@b.co', ['Adobe']);
+      await pending;
+
+      expect(outcomes, isEmpty);
+    });
+
+    test('details, reset and wipe emit nothing', () async {
+      final check = controller.check('a@b.co');
+      service.answerBreached('a@b.co', ['Adobe']);
+      await check;
+
+      final details = controller.loadDetails();
+      service.answerDetails([sampleBreach]);
+      await details;
+      controller.reset();
+      controller.wipe();
+
+      expect(outcomes, [CheckOutcome.breached]);
+    });
+  });
 }

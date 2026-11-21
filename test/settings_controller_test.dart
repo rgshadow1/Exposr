@@ -7,10 +7,11 @@ void main() {
 
   setUp(() => store = MemoryKeyValueStore());
 
-  test('starts with haptics on, shake-to-hide off and the lock off', () {
+  test('starts with haptics on, sounds off, shake-to-hide off and the lock off', () {
     final settings = SettingsController(store);
 
     expect(settings.hapticsEnabled, isTrue);
+    expect(settings.soundsEnabled, isFalse);
     expect(settings.shakeToHideEnabled, isFalse);
     expect(settings.lockEnabled, isFalse);
   });
@@ -21,11 +22,13 @@ void main() {
     settings.addListener(() => notified++);
 
     await settings.setHapticsEnabled(false);
+    await settings.setSoundsEnabled(true);
     await settings.setShakeToHideEnabled(true);
     await settings.setLockEnabled(true);
 
-    expect(notified, 3);
+    expect(notified, 4);
     expect(store.getBool('settings.haptics'), isFalse);
+    expect(store.getBool('settings.sounds'), isTrue);
     expect(store.getBool('settings.shakeToHide'), isTrue);
     expect(store.getBool('settings.appLock'), isTrue);
   });
@@ -40,26 +43,41 @@ void main() {
     expect(notified, 0);
   });
 
+  test('an existing haptics choice from before sounds were added is kept', () async {
+    // What an install of the earlier version would have saved.
+    await store.setBool('settings.haptics', false);
+
+    final settings = SettingsController(store);
+
+    expect(settings.hapticsEnabled, isFalse);
+    expect(settings.soundsEnabled, isFalse); // sounds stay off until chosen
+  });
+
   test('a new controller reads back what an old one saved', () async {
     final first = SettingsController(store);
     await first.setHapticsEnabled(false);
+    await first.setSoundsEnabled(true);
     await first.setShakeToHideEnabled(true);
 
     final second = SettingsController(store);
 
     expect(second.hapticsEnabled, isFalse);
+    expect(second.soundsEnabled, isTrue);
     expect(second.shakeToHideEnabled, isTrue);
   });
 
   test('resetToDefaults restores the defaults and forgets the saved values', () async {
     final settings = SettingsController(store);
     await settings.setHapticsEnabled(false);
+    await settings.setSoundsEnabled(true);
     await settings.setShakeToHideEnabled(true);
     await settings.setLockEnabled(true);
 
     await settings.resetToDefaults();
 
     expect(settings.hapticsEnabled, isTrue);
+    expect(settings.soundsEnabled, isFalse);
+    expect(store.getBool('settings.sounds'), isNull);
     expect(settings.shakeToHideEnabled, isFalse);
     expect(settings.lockEnabled, isFalse);
     expect(store.getBool('settings.haptics'), isNull);

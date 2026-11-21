@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'app_environment.dart';
+import 'core/app_colors.dart';
 import 'core/app_theme.dart';
+import 'core/app_tokens.dart';
 import 'screens/home_shell.dart';
 import 'services/breach_api_service.dart';
 import 'services/xposedornot_service.dart';
@@ -19,10 +23,16 @@ class BreachCheckerApp extends StatefulWidget {
   /// [environment] to replace the phone's hardware (storage, vibration,
   /// biometrics, accelerometer, browser). This is how the tests run the whole
   /// app without the network or a device.
-  const BreachCheckerApp({super.key, this.service, this.environment});
+  const BreachCheckerApp({super.key, this.service, this.environment, this.sampleDataNotice});
 
   final BreachApiService? service;
   final AppEnvironment? environment;
+
+  /// Set only by the design preview (`lib/dev/preview_main.dart`), which runs
+  /// the app on made-up data. When set, a strip saying so stays across the
+  /// top of every screen, so sample results can't be mistaken for real ones.
+  /// The real app (`lib/main.dart`) never sets it.
+  final String? sampleDataNotice;
 
   @override
   State<BreachCheckerApp> createState() => _BreachCheckerAppState();
@@ -53,12 +63,13 @@ class _BreachCheckerAppState extends State<BreachCheckerApp> {
       pause: _environment.watchlistPause,
     );
 
-    // Two small helpers that react to the controllers: vibrate on a result,
-    // and clear the screen on a shake.
+    // Two small helpers that react to the controllers: sound and haptics
+    // when a check finishes, and clearing the screen on a shake.
     _feedback = ResultFeedback(
       controller: _lookup,
       settings: _settings,
       haptics: _environment.haptics,
+      sounds: _environment.sounds,
     );
     _shakeToHide = ShakeToHide(
       source: _environment.shake,
@@ -71,6 +82,7 @@ class _BreachCheckerAppState extends State<BreachCheckerApp> {
   void dispose() {
     _shakeToHide.dispose();
     _feedback.dispose();
+    unawaited(_environment.sounds.dispose());
     _watchlist.dispose();
     _settings.dispose();
     _lookup.dispose();
@@ -84,6 +96,16 @@ class _BreachCheckerAppState extends State<BreachCheckerApp> {
       title: 'Exposr',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
+      builder: (context, child) {
+        final notice = widget.sampleDataNotice;
+        if (notice == null) return child!;
+        return Column(
+          children: [
+            _SampleDataBanner(notice),
+            Expanded(child: child!),
+          ],
+        );
+      },
       home: LockGate(
         settings: _settings,
         lock: _environment.lock,
@@ -91,8 +113,43 @@ class _BreachCheckerAppState extends State<BreachCheckerApp> {
           controller: _lookup,
           settings: _settings,
           watchlist: _watchlist,
+          feedback: _feedback,
           lock: _environment.lock,
           links: _environment.links,
+        ),
+      ),
+    );
+  }
+}
+
+/// The strip shown by the design preview. See [BreachCheckerApp.sampleDataNotice].
+class _SampleDataBanner extends StatelessWidget {
+  const _SampleDataBanner(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.tint(AppColors.warning),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 6),
+          child: Row(
+            children: [
+              const ExcludeSemantics(
+                child: Icon(Icons.science_outlined, size: 16, color: AppColors.warning),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  text,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.warning),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
