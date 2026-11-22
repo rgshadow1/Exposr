@@ -103,11 +103,11 @@ void main() {
   });
 
   group('feedback', () {
-    testWidgets('haptics start on and sounds start off, as two separate switches', (tester) async {
+    testWidgets('haptics and sounds both start on, as two separate switches', (tester) async {
       await pumpScreen(tester);
 
       expect(isOn(tester, 'Haptic feedback'), isTrue);
-      expect(isOn(tester, 'Result sounds'), isFalse);
+      expect(isOn(tester, 'Result sounds'), isTrue);
       expect(isOn(tester, 'Shake to hide'), isFalse);
     });
 
@@ -122,39 +122,40 @@ void main() {
       await tester.pump();
 
       expect(settings.hapticsEnabled, isFalse);
-      expect(settings.soundsEnabled, isTrue);
+      expect(settings.soundsEnabled, isFalse);
       expect(settings.shakeToHideEnabled, isTrue);
       expect(isOn(tester, 'Haptic feedback'), isFalse);
-      expect(isOn(tester, 'Result sounds'), isTrue);
+      expect(isOn(tester, 'Result sounds'), isFalse);
 
       // Saved, so the choice is still there the next time the app opens.
       final reopened = SettingsController(store);
       expect(reopened.hapticsEnabled, isFalse);
-      expect(reopened.soundsEnabled, isTrue);
+      expect(reopened.soundsEnabled, isFalse);
       reopened.dispose();
     });
 
-    testWidgets('turning sounds on loads them, without playing anything', (tester) async {
+    testWidgets('turning sounds back on loads them, without playing anything', (tester) async {
       await pumpScreen(tester);
-      expect(sounds.warmUps, 0);
+      await tester.tap(switchFor('Result sounds')); // off
+      await tester.pump();
+      final loaded = sounds.warmUps;
 
-      await tester.tap(switchFor('Result sounds'));
+      await tester.tap(switchFor('Result sounds')); // on again
       await tester.pump();
 
-      expect(sounds.warmUps, 1);
+      expect(sounds.warmUps, loaded + 1);
       expect(sounds.played, isEmpty);
     });
 
     testWidgets('nothing plays just because the screen is shown', (tester) async {
       await pumpScreen(tester);
-      await settings.setSoundsEnabled(true);
       await tester.pumpAndSettle();
 
       expect(haptics.calls, isEmpty);
       expect(sounds.played, isEmpty);
     });
 
-    testWidgets('each preview gives that result’s feedback, haptics only by default', (
+    testWidgets('each preview gives that result’s feedback, haptic and sound by default', (
       tester,
     ) async {
       await pumpScreen(tester);
@@ -162,16 +163,15 @@ void main() {
       await tester.tap(previewBreach);
       await tester.pump();
       expect(haptics.calls, ['breached']);
+      expect(sounds.played, ['breached']);
 
       await tester.tap(previewClear);
       await tester.pump();
       expect(haptics.calls, ['breached', 'clean']);
-
-      // Sounds are off, so the previews stay silent.
-      expect(sounds.played, isEmpty);
+      expect(sounds.played, ['breached', 'clean']);
     });
 
-    testWidgets('the previews include the sound once sounds are on', (tester) async {
+    testWidgets('the previews stay silent once sounds are switched off', (tester) async {
       await pumpScreen(tester);
       await tester.tap(switchFor('Result sounds'));
       await tester.pump();
@@ -181,7 +181,7 @@ void main() {
       await tester.tap(previewClear);
       await tester.pump();
 
-      expect(sounds.played, ['breached', 'clean']);
+      expect(sounds.played, isEmpty);
       expect(haptics.calls, ['breached', 'clean']);
     });
 
@@ -189,6 +189,8 @@ void main() {
       await pumpScreen(tester);
 
       await tester.tap(switchFor('Haptic feedback'));
+      await tester.pump();
+      await tester.tap(switchFor('Result sounds'));
       await tester.pump();
 
       expect(isEnabled(tester, previewBreach), isFalse);
@@ -207,14 +209,17 @@ void main() {
       expect(find.text('This device doesn’t support haptic feedback.'), findsOneWidget);
 
       // Sounds still work there, and so do their previews.
-      expect(isEnabled(tester, previewBreach), isFalse);
-      await tester.tap(switchFor('Result sounds'));
-      await tester.pump();
+      expect(isEnabled(tester, previewBreach), isTrue);
       await tester.tap(previewClear);
       await tester.pump();
 
       expect(sounds.played, ['clean']);
       expect(haptics.calls, isEmpty);
+
+      // With the sounds off too, there is nothing left to preview.
+      await tester.tap(switchFor('Result sounds'));
+      await tester.pump();
+      expect(isEnabled(tester, previewBreach), isFalse);
     });
 
     testWidgets('the previews are named for screen readers', (tester) async {
@@ -298,7 +303,7 @@ void main() {
       await pumpScreen(tester);
       await watchlist.add('name@example.com');
       await settings.setHapticsEnabled(false);
-      await settings.setSoundsEnabled(true);
+      await settings.setSoundsEnabled(false);
       await tester.pumpAndSettle();
       expect(watchlist.entries, hasLength(1));
 
@@ -309,7 +314,7 @@ void main() {
 
       expect(watchlist.entries, isEmpty);
       expect(settings.hapticsEnabled, isTrue);
-      expect(settings.soundsEnabled, isFalse); // back to off
+      expect(settings.soundsEnabled, isTrue); // back to on
       expect(find.text('All data cleared.'), findsOneWidget);
     });
   });

@@ -140,8 +140,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onChanged: widget.settings.setSoundsEnabled,
                       title: const Text('Result sounds'),
                       subtitle: const Text(
-                        'A short, quiet sound with each result. Off unless you turn it on, and '
-                        'silent in silent mode on phones.',
+                        'Plays result sounds, one positive and one negative.',
                       ),
                     ),
                     _FeedbackPreview(feedback: widget.feedback),

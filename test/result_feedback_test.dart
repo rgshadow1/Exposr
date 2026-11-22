@@ -59,30 +59,8 @@ void main() {
     await check;
   }
 
-  group('by default (haptics on, sounds off)', () {
-    test('breaches found: one warning haptic, no sound', () async {
-      await finishBreached();
-
-      expect(haptics.calls, ['breached']);
-      expect(sounds.played, isEmpty);
-    });
-
-    test('no known breaches: one success haptic, no sound', () async {
-      await finishClean();
-
-      expect(haptics.calls, ['clean']);
-      expect(sounds.played, isEmpty);
-    });
-
-    test('the sounds are not even loaded', () {
-      expect(sounds.warmUps, 0);
-    });
-  });
-
-  group('with result sounds switched on', () {
-    setUp(() => settings.setSoundsEnabled(true));
-
-    test('the sounds are loaded as soon as the switch is turned on', () {
+  group('by default (haptics on, sounds on)', () {
+    test('the sounds are loaded as soon as the feedback is set up', () {
       expect(sounds.warmUps, 1);
     });
 
@@ -110,11 +88,54 @@ void main() {
     });
   });
 
+  group('with result sounds switched off', () {
+    setUp(() => settings.setSoundsEnabled(false));
+
+    test('breaches found: the warning haptic and no sound', () async {
+      await finishBreached();
+
+      expect(haptics.calls, ['breached']);
+      expect(sounds.played, isEmpty);
+    });
+
+    test('no known breaches: the success haptic and no sound', () async {
+      await finishClean();
+
+      expect(haptics.calls, ['clean']);
+      expect(sounds.played, isEmpty);
+    });
+
+    test('switching them back on loads them again', () async {
+      final before = sounds.warmUps;
+
+      await settings.setSoundsEnabled(true);
+
+      expect(sounds.warmUps, before + 1);
+    });
+
+    test('sounds saved as off are not even loaded when the app opens', () async {
+      final saved = MemoryKeyValueStore();
+      await saved.setBool('settings.sounds', false);
+      final savedOff = SettingsController(saved);
+      final quiet = FakeSoundService();
+      final local = ResultFeedback(
+        controller: controller,
+        settings: savedOff,
+        haptics: haptics,
+        sounds: quiet,
+      );
+      addTearDown(() {
+        local.dispose();
+        savedOff.dispose();
+      });
+
+      expect(quiet.warmUps, 0);
+    });
+  });
+
   group('a failed check', () {
     for (final failure in BreachApiFailure.values) {
       test('${failure.name}: no haptic and no sound, and never the success ones', () async {
-        await settings.setSoundsEnabled(true);
-
         final check = controller.check('a@b.co');
         service.failCheck(failure);
         await check;
@@ -126,7 +147,6 @@ void main() {
     }
 
     test('a retry that then succeeds gives feedback once, for the success', () async {
-      await settings.setSoundsEnabled(true);
       final first = controller.check('a@b.co');
       service.failCheck(BreachApiFailure.timeout);
       await first;
@@ -141,6 +161,7 @@ void main() {
   group('settings', () {
     test('nothing at all when both are switched off', () async {
       await settings.setHapticsEnabled(false);
+      await settings.setSoundsEnabled(false);
 
       await finishBreached();
 
@@ -160,8 +181,6 @@ void main() {
   });
 
   group('exactly once per completed check', () {
-    setUp(() => settings.setSoundsEnabled(true));
-
     test('nothing while the check is still running', () {
       controller.check('a@b.co');
 
@@ -280,7 +299,6 @@ void main() {
   });
 
   test('a Watchlist check is a background refresh and gives no feedback', () async {
-    await settings.setSoundsEnabled(true);
     final scripted = ScriptedBreachApiService()..breaches['a@b.co'] = ['Adobe'];
     final watchlist = WatchlistController(service: scripted, store: MemoryKeyValueStore());
     addTearDown(watchlist.dispose);
@@ -310,7 +328,6 @@ void main() {
     });
 
     test('a haptic or sound that throws never disturbs the result', () async {
-      await settings.setSoundsEnabled(true);
       feedback.dispose();
       feedback = build(hapticsService: _BrokenHaptics(), soundService: _BrokenSounds());
 
@@ -323,8 +340,6 @@ void main() {
 
   group('previews', () {
     test('play what a real result would, with the switches as they are', () async {
-      await settings.setSoundsEnabled(true);
-
       feedback.give(CheckOutcome.breached);
       feedback.give(CheckOutcome.clean);
 
@@ -332,8 +347,19 @@ void main() {
       expect(sounds.played, ['breached', 'clean']);
     });
 
-    test('play nothing for a channel that is switched off', () async {
+    test('play only the channel that is switched on', () async {
       await settings.setHapticsEnabled(false);
+
+      feedback.give(CheckOutcome.clean);
+
+      expect(haptics.calls, isEmpty);
+      expect(sounds.played, ['clean']);
+      expect(feedback.isActive, isTrue);
+    });
+
+    test('play nothing when both are switched off', () async {
+      await settings.setHapticsEnabled(false);
+      await settings.setSoundsEnabled(false);
 
       feedback.give(CheckOutcome.clean);
 

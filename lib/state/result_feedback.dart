@@ -20,8 +20,8 @@ import 'settings_controller.dart';
 ///
 /// What it does with each outcome:
 ///
-///  * breaches found: a brief warning haptic and, if switched on, a subdued sound;
-///  * no known breaches: a light success haptic and, if switched on, a soft sound;
+///  * breaches found: a brief warning haptic and, unless switched off, the "low honor" sound;
+///  * no known breaches: a light success haptic and, unless switched off, the "high honor" sound;
 ///  * failed: nothing. A failure is never dressed up as a result.
 ///
 /// Feedback is fired and forgotten: it is never awaited, so it lands with the

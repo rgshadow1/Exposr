@@ -10,7 +10,7 @@ import '../services/key_value_store.dart';
 class SettingsController extends ChangeNotifier {
   SettingsController(this._store) {
     _hapticsEnabled = _store.getBool(_hapticsKey) ?? true;
-    _soundsEnabled = _store.getBool(_soundsKey) ?? false;
+    _soundsEnabled = _store.getBool(_soundsKey) ?? true;
     _shakeToHideEnabled = _store.getBool(_shakeKey) ?? false;
     _lockEnabled = _store.getBool(_lockKey) ?? false;
   }
@@ -23,7 +23,7 @@ class SettingsController extends ChangeNotifier {
   final KeyValueStore _store;
 
   bool _hapticsEnabled = true;
-  bool _soundsEnabled = false;
+  bool _soundsEnabled = true;
   bool _shakeToHideEnabled = false;
   bool _lockEnabled = false;
 
@@ -31,7 +31,7 @@ class SettingsController extends ChangeNotifier {
   /// an effect on devices that can give haptics.
   bool get hapticsEnabled => _hapticsEnabled;
 
-  /// Play a short sound when a check finishes. Off by default.
+  /// Play a sound when a check finishes. On by default.
   bool get soundsEnabled => _soundsEnabled;
 
   /// Clear the address and results when the phone is shaken.
@@ -71,7 +71,7 @@ class SettingsController extends ChangeNotifier {
   /// Back to the defaults, and forget the saved choices.
   Future<void> resetToDefaults() async {
     _hapticsEnabled = true;
-    _soundsEnabled = false;
+    _soundsEnabled = true;
     _shakeToHideEnabled = false;
     _lockEnabled = false;
     notifyListeners();
